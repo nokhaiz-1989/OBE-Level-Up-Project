@@ -167,7 +167,7 @@ def pyramid(level):
 
 
 def celebrate(label):
-    """Confetti burst + a short victory jingle, generated entirely in the
+    """Confetti burst + simulated applause, generated entirely in the
     browser (no external audio file needed, so nothing to host or license).
     Some browsers block audio until the page has had one click anywhere --
     if sound is silent the very first time, just click the screen once."""
@@ -176,7 +176,7 @@ def celebrate(label):
         <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
         <div style="text-align:center;font-family:sans-serif;font-weight:800;
                     font-size:22px;color:#F03E3E;padding-top:10px;">
-            🎉 {label} 🎉
+            👏 {label} 👏
         </div>
         <script>
         (function() {{
@@ -195,21 +195,42 @@ def celebrate(label):
 
             try {{
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 E5 G5 C6
-                let t = ctx.currentTime;
-                notes.forEach(function(freq) {{
-                    const osc = ctx.createOscillator();
+
+                function playClap(startTime) {{
+                    // Short burst of decaying filtered noise = one "clap"
+                    const bufferSize = Math.floor(ctx.sampleRate * 0.12);
+                    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {{
+                        const decay = Math.pow(1 - i / bufferSize, 2);
+                        data[i] = (Math.random() * 2 - 1) * decay;
+                    }}
+                    const noise = ctx.createBufferSource();
+                    noise.buffer = buffer;
+
+                    const bandpass = ctx.createBiquadFilter();
+                    bandpass.type = 'bandpass';
+                    bandpass.frequency.value = 1200 + Math.random() * 800;
+                    bandpass.Q.value = 0.8;
+
                     const gain = ctx.createGain();
-                    osc.type = 'triangle';
-                    osc.frequency.value = freq;
-                    gain.gain.setValueAtTime(0.25, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-                    osc.connect(gain);
+                    gain.gain.setValueAtTime(0.5, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+
+                    noise.connect(bandpass);
+                    bandpass.connect(gain);
                     gain.connect(ctx.destination);
-                    osc.start(t);
-                    osc.stop(t + 0.35);
-                    t += 0.18;
-                }});
+
+                    noise.start(startTime);
+                    noise.stop(startTime + 0.12);
+                }}
+
+                // A round of applause: ~18 irregularly-timed claps over ~1.6s
+                let t = ctx.currentTime + 0.05;
+                for (let i = 0; i < 18; i++) {{
+                    playClap(t);
+                    t += 0.06 + Math.random() * 0.08;
+                }}
             }} catch (e) {{}}
         }})();
         </script>
@@ -465,45 +486,27 @@ def presenter():
 
     st.divider()
 
-    # ---- Leaderboard, sorted by score, big and readable from a distance ----
-    st.markdown("<h4 style='margin:0.2rem 0;'>🏆 Leaderboard</h4>", unsafe_allow_html=True)
-    ranked = sorted(
-        teams.items(),
-        key=lambda kv: (-kv[1]["score"], -sum(kv[1]["completed"]))
-    )
-    medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-    lb_cols = st.columns(5)
-    for rank, (team_id, t) in enumerate(ranked):
-        with lb_cols[rank]:
-            st.markdown(
-                f"<div style='text-align:center;font-size:24px;line-height:1.1;'>{medal[rank]}</div>"
-                f"<div style='text-align:center;font-size:15px;font-weight:700;'>Team {team_id}</div>"
-                f"<div style='text-align:center;font-size:12px;color:#666;'>{t['score']} pts</div>",
+    # ---- Level-by-level progress grid, shown directly (no leaderboard, no dropdown) ----
+    st.markdown("<h4 style='margin:0.2rem 0;'>📋 Level-by-Level Progress</h4>", unsafe_allow_html=True)
+    header = st.columns(6)
+    header[0].markdown("**TEAM**")
+    for i, name in enumerate(LEVELS, start=1):
+        header[i].markdown(f"**{i}. {name}**")
+
+    for i in range(1, 6):
+        t = teams[i]
+        row = st.columns(6)
+        row[0].markdown(f"**Team {i}**")
+        for j in range(5):
+            done = t["completed"][j]
+            color = LEVEL_COLORS[j] if done else "#E9ECEF"
+            text = "✓" if done else ""
+            row[j + 1].markdown(
+                f"<div style='background:{color};border-radius:6px;height:28px;"
+                f"display:flex;align-items:center;justify-content:center;"
+                f"color:white;font-weight:700;font-size:13px;'>{text}</div>",
                 unsafe_allow_html=True
             )
-
-    # Detailed level-by-level grid tucked into a collapsed expander so it
-    # doesn't take up vertical space unless the presenter wants to open it.
-    with st.expander("📋 Detailed level-by-level progress"):
-        header = st.columns(6)
-        header[0].markdown("**TEAM**")
-        for i, name in enumerate(LEVELS, start=1):
-            header[i].markdown(f"**{i}. {name}**")
-
-        for i in range(1, 6):
-            t = teams[i]
-            row = st.columns(6)
-            row[0].markdown(f"**Team {i}**")
-            for j in range(5):
-                done = t["completed"][j]
-                color = LEVEL_COLORS[j] if done else "#E9ECEF"
-                text = "✓" if done else ""
-                row[j + 1].markdown(
-                    f"<div style='background:{color};border-radius:6px;height:28px;"
-                    f"display:flex;align-items:center;justify-content:center;"
-                    f"color:white;font-weight:700;font-size:13px;'>{text}</div>",
-                    unsafe_allow_html=True
-                )
 
     c1, c2 = st.columns(2)
     with c1:
