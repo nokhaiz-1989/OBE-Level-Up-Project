@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import time
 import random
 import string
@@ -113,7 +114,13 @@ def get_shared_teams():
     no arguments returns the exact same object to every session, so mutating
     it here updates it everywhere -- this is what makes the game 'live'."""
     return {
-        i: {"level": 1, "score": 0, "completed": [False] * 5}
+        i: {
+            "level": 1,
+            "score": 0,
+            "completed": [False] * 5,
+            "celebrated_team": False,       # has the team's own screen played the confetti yet
+            "celebrated_presenter": False,  # has the presenter screen played it for this team yet
+        }
         for i in range(1, 6)
     }
 
@@ -159,6 +166,58 @@ def pyramid(level):
     return "".join(rows)
 
 
+def celebrate(label):
+    """Confetti burst + a short victory jingle, generated entirely in the
+    browser (no external audio file needed, so nothing to host or license).
+    Some browsers block audio until the page has had one click anywhere --
+    if sound is silent the very first time, just click the screen once."""
+    components.html(
+        f"""
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
+        <div style="text-align:center;font-family:sans-serif;font-weight:800;
+                    font-size:22px;color:#F03E3E;padding-top:10px;">
+            🎉 {label} 🎉
+        </div>
+        <script>
+        (function() {{
+            function fireConfetti() {{
+                if (typeof confetti === 'function') {{
+                    confetti({{particleCount:150, spread:90, origin:{{y:0.4}}}});
+                    confetti({{particleCount:100, spread:130, origin:{{y:0.2}}}});
+                    setTimeout(function() {{
+                        confetti({{particleCount:80, spread:100, origin:{{y:0.5}}}});
+                    }}, 300);
+                }} else {{
+                    setTimeout(fireConfetti, 100);
+                }}
+            }}
+            fireConfetti();
+
+            try {{
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 E5 G5 C6
+                let t = ctx.currentTime;
+                notes.forEach(function(freq) {{
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.25, t);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(t);
+                    osc.stop(t + 0.35);
+                    t += 0.18;
+                }});
+            }} catch (e) {{}}
+        }})();
+        </script>
+        """,
+        height=90,
+    )
+
+
 def advance(team_id, level):
     t = teams[team_id]
     t["completed"][level - 1] = True
@@ -195,7 +254,10 @@ def join():
     team_id = int(team.split()[-1])
 
     t = teams[team_id]
-    st.info(f"{team} is currently on Level {t['level']}.")
+    if t["level"] > 5:
+        st.info(f"{team} has completed all levels! 🏆")
+    else:
+        st.info(f"{team} is currently on Level {t['level']}.")
 
     if st.button("ENTER GAME", type="primary", use_container_width=True):
         st.session_state.team = team_id
@@ -217,6 +279,9 @@ def team_game():
     if level > 5:
         st.success("🏆 OBE MASTER — YOUR PYRAMID IS COMPLETE!")
         st.markdown(pyramid(5), unsafe_allow_html=True)
+        if not t["celebrated_team"]:
+            celebrate(f"Team {team_id} finished the pyramid!")
+            t["celebrated_team"] = True
         return
 
     st.progress((level - 1) / 5)
@@ -344,11 +409,28 @@ def presenter():
     # on the projector without anyone clicking Refresh.
     st_autorefresh(interval=2000, key="presenter_autorefresh")
 
+    # Tighten Streamlit's default padding/margins so the whole dashboard
+    # fits on one screen without scrolling on a typical projector/TV.
     st.markdown(
-        "<h1 style='text-align:center;'>📺 OBE LEVEL-UP — LIVE PRESENTER DASHBOARD</h1>",
+        """
+        <style>
+        .block-container {
+            padding-top: 1.2rem;
+            padding-bottom: 0.5rem;
+        }
+        div[data-testid="stVerticalBlock"] > div {
+            gap: 0.3rem;
+        }
+        hr { margin: 0.6rem 0; }
+        </style>
+        """,
         unsafe_allow_html=True
     )
-    st.caption("Project this screen. Each team uses a separate device.")
+
+    st.markdown(
+        "<h2 style='text-align:center;margin-bottom:0;'>📺 OBE LEVEL-UP — LIVE DASHBOARD</h2>",
+        unsafe_allow_html=True
+    )
 
     cols = st.columns(5)
 
@@ -356,31 +438,35 @@ def presenter():
         t = teams[i]
         level = min(t["level"], 5)
         done = sum(t["completed"])
+        just_finished = t["level"] > 5 and not t["celebrated_presenter"]
 
         with col:
             st.markdown(
-                f"<h3 style='text-align:center;'>Team {i}</h3>",
+                f"<h4 style='text-align:center;margin:0;'>Team {i}</h4>",
                 unsafe_allow_html=True
             )
             status = "🏆 COMPLETE" if t["level"] > 5 else f"LEVEL {t['level']}"
             st.markdown(
-                f"<div style='text-align:center;font-size:22px;font-weight:800;"
-                f"color:{'#F03E3E' if t['level']>5 else '#212529'};margin-bottom:6px;'>"
+                f"<div style='text-align:center;font-size:18px;font-weight:800;"
+                f"color:{'#F03E3E' if t['level']>5 else '#212529'};margin-bottom:2px;'>"
                 f"{status}</div>",
                 unsafe_allow_html=True
             )
             st.markdown(pyramid(level), unsafe_allow_html=True)
             st.progress(done / 5)
             st.markdown(
-                f"<div style='text-align:center;font-size:14px;color:#666;margin-top:4px;'>"
+                f"<div style='text-align:center;font-size:13px;color:#666;margin-top:2px;'>"
                 f"{done}/5 levels • {t['score']} pts</div>",
                 unsafe_allow_html=True
             )
+            if just_finished:
+                celebrate(f"Team {i} finished the pyramid!")
+                t["celebrated_presenter"] = True
 
     st.divider()
 
     # ---- Leaderboard, sorted by score, big and readable from a distance ----
-    st.subheader("🏆 Leaderboard")
+    st.markdown("<h4 style='margin:0.2rem 0;'>🏆 Leaderboard</h4>", unsafe_allow_html=True)
     ranked = sorted(
         teams.items(),
         key=lambda kv: (-kv[1]["score"], -sum(kv[1]["completed"]))
@@ -390,38 +476,35 @@ def presenter():
     for rank, (team_id, t) in enumerate(ranked):
         with lb_cols[rank]:
             st.markdown(
-                f"<div style='text-align:center;font-size:34px;'>{medal[rank]}</div>"
-                f"<div style='text-align:center;font-size:18px;font-weight:700;'>Team {team_id}</div>"
-                f"<div style='text-align:center;font-size:15px;color:#666;'>{t['score']} pts</div>",
+                f"<div style='text-align:center;font-size:24px;line-height:1.1;'>{medal[rank]}</div>"
+                f"<div style='text-align:center;font-size:15px;font-weight:700;'>Team {team_id}</div>"
+                f"<div style='text-align:center;font-size:12px;color:#666;'>{t['score']} pts</div>",
                 unsafe_allow_html=True
             )
 
-    st.divider()
+    # Detailed level-by-level grid tucked into a collapsed expander so it
+    # doesn't take up vertical space unless the presenter wants to open it.
+    with st.expander("📋 Detailed level-by-level progress"):
+        header = st.columns(6)
+        header[0].markdown("**TEAM**")
+        for i, name in enumerate(LEVELS, start=1):
+            header[i].markdown(f"**{i}. {name}**")
 
-    # ---- Live progress grid with colored badges instead of emoji lock/check ----
-    st.subheader("Live Progress")
+        for i in range(1, 6):
+            t = teams[i]
+            row = st.columns(6)
+            row[0].markdown(f"**Team {i}**")
+            for j in range(5):
+                done = t["completed"][j]
+                color = LEVEL_COLORS[j] if done else "#E9ECEF"
+                text = "✓" if done else ""
+                row[j + 1].markdown(
+                    f"<div style='background:{color};border-radius:6px;height:28px;"
+                    f"display:flex;align-items:center;justify-content:center;"
+                    f"color:white;font-weight:700;font-size:13px;'>{text}</div>",
+                    unsafe_allow_html=True
+                )
 
-    header = st.columns(6)
-    header[0].markdown("**TEAM**")
-    for i, name in enumerate(LEVELS, start=1):
-        header[i].markdown(f"**{i}. {name}**")
-
-    for i in range(1, 6):
-        t = teams[i]
-        row = st.columns(6)
-        row[0].markdown(f"**Team {i}**")
-        for j in range(5):
-            done = t["completed"][j]
-            color = LEVEL_COLORS[j] if done else "#E9ECEF"
-            text = "✓" if done else ""
-            row[j + 1].markdown(
-                f"<div style='background:{color};border-radius:6px;height:32px;"
-                f"display:flex;align-items:center;justify-content:center;"
-                f"color:white;font-weight:700;'>{text}</div>",
-                unsafe_allow_html=True
-            )
-
-    st.write("")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🔄 Refresh Dashboard", use_container_width=True):
@@ -439,7 +522,8 @@ def demo():
     for i in range(1, 6):
         t = teams[i]
         c1, c2 = st.columns([2, 1])
-        c1.write(f"Team {i} — Level {t['level']}")
+        status = "COMPLETE" if t["level"] > 5 else f"Level {t['level']}"
+        c1.write(f"Team {i} — {status}")
         if c2.button(f"Advance Team {i}", key=f"advance_{i}"):
             if t["level"] <= 5:
                 advance(i, t["level"])
@@ -450,6 +534,11 @@ def demo():
             teams[i]["level"] = 1
             teams[i]["score"] = 0
             teams[i]["completed"] = [False] * 5
+            teams[i]["celebrated_team"] = False
+            teams[i]["celebrated_presenter"] = False
+            st.session_state.pop(f"l5_grid_{i}", None)
+            st.session_state.pop(f"l5_selected_{i}", None)
+            st.session_state.pop(f"l5_found_{i}", None)
         st.rerun()
 
     if st.button("← Home"):
