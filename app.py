@@ -63,6 +63,18 @@ QUESTIONS = {
     }
 }
 
+# Level 5 is a crossword-style clue set instead of multiple choice.
+# Each entry: the answer word (uppercase, no spaces) and its clue.
+CROSSWORD = {
+    "title": "🔁 LEVEL 5 — REFINE THE LOOP",
+    "text": "Solve all three clues to complete the pyramid.",
+    "words": [
+        {"answer": "OUTCOME", "clue": "The intended result of learning, stated as what a student will be able to do."},
+        {"answer": "RUBRIC", "clue": "A scoring guide that spells out the criteria used to judge performance."},
+        {"answer": "ALIGNMENT", "clue": "When the outcome, the learning activity, and the assessment all point to the same goal."}
+    ]
+}
+
 @st.cache_resource
 def get_shared_teams():
     """A single dict shared by EVERY browser session connected to this app.
@@ -178,8 +190,13 @@ def team_game():
         return
 
     st.progress((level - 1) / 5)
-    st.subheader(QUESTIONS[level]["title"])
-    st.write(QUESTIONS[level]["text"])
+
+    if level == 5:
+        st.subheader(CROSSWORD["title"])
+        st.write(CROSSWORD["text"])
+    else:
+        st.subheader(QUESTIONS[level]["title"])
+        st.write(QUESTIONS[level]["text"])
 
     if level in [1, 2, 4]:
         options = QUESTIONS[level]["options"]
@@ -215,6 +232,28 @@ def team_game():
                 st.rerun()
             else:
                 st.error("Reconsider the movement from support toward independence.")
+
+    elif level == 5:
+        st.write("Type one word per clue. Not case-sensitive.")
+        answers = []
+        for i, word in enumerate(CROSSWORD["words"], start=1):
+            st.markdown(f"**{i} Across ({len(word['answer'])} letters).** {word['clue']}")
+            guess = st.text_input(
+                f"Answer {i}",
+                key=f"q_{team_id}_5_{i}",
+                label_visibility="collapsed"
+            )
+            answers.append(guess.strip().upper())
+
+        if st.button("SUBMIT PUZZLE", type="primary", use_container_width=True):
+            correct = [w["answer"] for w in CROSSWORD["words"]]
+            if answers == correct:
+                advance(team_id, 5)
+                st.success("🎉 Level 5 complete! Pyramid finished!")
+                time.sleep(0.6)
+                st.rerun()
+            else:
+                st.error("Not quite — check your spelling and try again.")
 
 
 def presenter():
