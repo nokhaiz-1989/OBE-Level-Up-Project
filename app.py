@@ -167,19 +167,14 @@ def pyramid(level):
 
 
 def celebrate(label):
-    """Confetti burst + simulated round of applause, generated entirely in
-    the browser (no external audio file needed, so nothing to host or
-    license, and nothing that can 404). Dozens of short overlapping "clap"
-    grains are layered under one swelling volume envelope so it reads as a
-    crowd applauding rather than a handful of isolated clicks.
-    Some browsers block audio until the page has had one click anywhere --
-    if sound is silent the very first time, just click the screen once."""
+    """Confetti burst, generated entirely in the browser (no external file
+    needed, so nothing to host or license)."""
     components.html(
         f"""
         <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
         <div style="text-align:center;font-family:sans-serif;font-weight:800;
                     font-size:22px;color:#F03E3E;padding-top:10px;">
-            👏 {label} 👏
+            🎉 {label} 🎉
         </div>
         <script>
         (function() {{
@@ -195,55 +190,6 @@ def celebrate(label):
                 }}
             }}
             fireConfetti();
-
-            try {{
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-                // One master fader shapes the whole round of applause:
-                // quick swell in, sustain, then fade out -- like a crowd.
-                const master = ctx.createGain();
-                master.gain.setValueAtTime(0.0001, ctx.currentTime);
-                master.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.25);
-                master.gain.setValueAtTime(0.9, ctx.currentTime + 1.6);
-                master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.4);
-                master.connect(ctx.destination);
-
-                // A single short noise-burst "clap" grain, reused for every hit.
-                const bufferSize = Math.floor(ctx.sampleRate * 0.06);
-                const clapBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-                const data = clapBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {{
-                    const decay = Math.pow(1 - i / bufferSize, 3);
-                    data[i] = (Math.random() * 2 - 1) * decay;
-                }}
-
-                function playClap(startTime, vol) {{
-                    const noise = ctx.createBufferSource();
-                    noise.buffer = clapBuffer;
-
-                    const bandpass = ctx.createBiquadFilter();
-                    bandpass.type = 'bandpass';
-                    bandpass.frequency.value = 1800 + Math.random() * 2200;
-                    bandpass.Q.value = 0.6 + Math.random() * 0.8;
-
-                    const gain = ctx.createGain();
-                    gain.gain.value = vol;
-
-                    noise.connect(bandpass);
-                    bandpass.connect(gain);
-                    gain.connect(master);
-                    noise.start(startTime);
-                }}
-
-                // ~90 overlapping claps scattered across ~2.2s = a full round of applause.
-                const duration = 2.2;
-                const numClaps = 90;
-                const t0 = ctx.currentTime + 0.05;
-                for (let i = 0; i < numClaps; i++) {{
-                    const t = t0 + Math.random() * duration;
-                    playClap(t, 0.4 + Math.random() * 0.6);
-                }}
-            }} catch (e) {{}}
         }})();
         </script>
         """,
@@ -328,16 +274,29 @@ def team_game():
 
     if level in [1, 2, 4]:
         options = QUESTIONS[level]["options"]
-        choice = st.radio(
+
+        # Shuffle option order per-team so different teams (and the
+        # presenter watching multiple screens) can't rely on option
+        # position matching between teams.
+        order_key = f"order_{team_id}_{level}"
+        if order_key not in st.session_state:
+            order = list(range(len(options)))
+            random.shuffle(order)
+            st.session_state[order_key] = order
+        order = st.session_state[order_key]
+
+        choice_pos = st.radio(
             "Choose your team's response:",
-            range(len(options)),
-            format_func=lambda x: options[x],
+            range(len(order)),
+            format_func=lambda x: options[order[x]],
             key=f"q_{team_id}_{level}"
         )
 
         if st.button("SUBMIT CHALLENGE", type="primary", use_container_width=True):
-            if choice == QUESTIONS[level]["answer"]:
+            actual_choice = order[choice_pos]
+            if actual_choice == QUESTIONS[level]["answer"]:
                 advance(team_id, level)
+                st.session_state.pop(order_key, None)
                 st.success(f"🎉 Level {level} complete! Level {level + 1} unlocked.")
                 time.sleep(0.6)
                 st.rerun()
@@ -346,15 +305,26 @@ def team_game():
 
     elif level == 3:
         st.write("Select the blocks in the order your team recommends.")
+
+        # Shuffle the pool of blocks per-team so the starting layout isn't
+        # identical across teams -- the correct sequence itself is unchanged.
+        pool_key = f"pool_{team_id}_3"
+        if pool_key not in st.session_state:
+            pool = QUESTIONS[3]["options"][:]
+            random.shuffle(pool)
+            st.session_state[pool_key] = pool
+        pool = st.session_state[pool_key]
+
         selected = st.multiselect(
             "Build your sequence:",
-            QUESTIONS[3]["options"],
+            pool,
             key=f"q_{team_id}_3"
         )
 
         if st.button("SUBMIT SEQUENCE", type="primary", use_container_width=True):
             if selected == QUESTIONS[3]["answer"]:
                 advance(team_id, 3)
+                st.session_state.pop(pool_key, None)
                 st.success("🎉 Level 3 complete! Level 4 unlocked.")
                 time.sleep(0.6)
                 st.rerun()
