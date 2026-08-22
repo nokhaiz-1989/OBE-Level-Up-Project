@@ -65,17 +65,45 @@ QUESTIONS = {
     }
 }
 
-# Level 5 is a crossword-style clue set instead of multiple choice.
-# Each entry: the answer word (uppercase, no spaces) and its clue.
-CROSSWORD = {
-    "title": "🔁 LEVEL 5 — REFINE THE LOOP",
-    "text": "Solve all three clues to complete the pyramid.",
-    "words": [
-        {"answer": "OUTCOME", "clue": "The intended result of learning, stated as what a student will be able to do."},
-        {"answer": "RUBRIC", "clue": "A scoring guide that spells out the criteria used to judge performance."},
-        {"answer": "ALIGNMENT", "clue": "When the outcome, the learning activity, and the assessment all point to the same goal."}
-    ]
-}
+# Level 5 is a word-search grid. Each word has a fixed start cell and
+# direction so it's placed on the board without colliding with the others.
+WORD_SEARCH_SIZE = 10
+WORD_SEARCH_WORDS = [
+    {
+        "answer": "ALIGNMENT",
+        "clue": "When the outcome, the learning activity, and the assessment all point to the same goal.",
+        "start": (0, 0),
+        "dir": (0, 1),   # left to right
+    },
+    {
+        "answer": "OUTCOME",
+        "clue": "The intended result of learning, stated as what a student will be able to do.",
+        "start": (0, 9),
+        "dir": (1, 0),   # top to bottom
+    },
+    {
+        "answer": "RUBRIC",
+        "clue": "A scoring guide that spells out the criteria used to judge performance.",
+        "start": (2, 0),
+        "dir": (1, 1),   # diagonal down-right
+    },
+]
+
+
+def build_word_search_grid():
+    grid = [[None] * WORD_SEARCH_SIZE for _ in range(WORD_SEARCH_SIZE)]
+    for w in WORD_SEARCH_WORDS:
+        r, c = w["start"]
+        dr, dc = w["dir"]
+        for ch in w["answer"]:
+            grid[r][c] = ch
+            r += dr
+            c += dc
+    for r in range(WORD_SEARCH_SIZE):
+        for c in range(WORD_SEARCH_SIZE):
+            if grid[r][c] is None:
+                grid[r][c] = random.choice(string.ascii_uppercase)
+    return grid
 
 @st.cache_resource
 def get_shared_teams():
@@ -194,8 +222,8 @@ def team_game():
     st.progress((level - 1) / 5)
 
     if level == 5:
-        st.subheader(CROSSWORD["title"])
-        st.write(CROSSWORD["text"])
+        st.subheader("🔁 LEVEL 5 — REFINE THE LOOP")
+        st.write("Find all 3 hidden words in the grid. Click letters to select them, then press Submit Word.")
     else:
         st.subheader(QUESTIONS[level]["title"])
         st.write(QUESTIONS[level]["text"])
@@ -236,26 +264,79 @@ def team_game():
                 st.error("Reconsider the movement from support toward independence.")
 
     elif level == 5:
-        st.write("Type one word per clue. Not case-sensitive.")
-        answers = []
-        for i, word in enumerate(CROSSWORD["words"], start=1):
-            st.markdown(f"**{i} Across ({len(word['answer'])} letters).** {word['clue']}")
-            guess = st.text_input(
-                f"Answer {i}",
-                key=f"q_{team_id}_5_{i}",
-                label_visibility="collapsed"
-            )
-            answers.append(guess.strip().upper())
+        grid_key = f"l5_grid_{team_id}"
+        sel_key = f"l5_selected_{team_id}"
+        found_key = f"l5_found_{team_id}"
 
-        if st.button("SUBMIT PUZZLE", type="primary", use_container_width=True):
-            correct = [w["answer"] for w in CROSSWORD["words"]]
-            if answers == correct:
-                advance(team_id, 5)
-                st.success("🎉 Level 5 complete! Pyramid finished!")
-                time.sleep(0.6)
+        if grid_key not in st.session_state:
+            st.session_state[grid_key] = build_word_search_grid()
+        if sel_key not in st.session_state:
+            st.session_state[sel_key] = []
+        if found_key not in st.session_state:
+            st.session_state[found_key] = set()
+
+        grid = st.session_state[grid_key]
+        selected = st.session_state[sel_key]
+        found = st.session_state[found_key]
+
+        grid_col, clue_col = st.columns([3, 2])
+
+        with grid_col:
+            for r in range(WORD_SEARCH_SIZE):
+                row_cells = st.columns(WORD_SEARCH_SIZE, gap="small")
+                for c in range(WORD_SEARCH_SIZE):
+                    letter = grid[r][c]
+                    is_selected = (r, c) in selected
+                    btn_type = "primary" if is_selected else "secondary"
+                    if row_cells[c].button(
+                        letter,
+                        key=f"cell_{team_id}_{r}_{c}",
+                        type=btn_type,
+                        use_container_width=True
+                    ):
+                        if is_selected:
+                            selected.remove((r, c))
+                        else:
+                            selected.append((r, c))
+                        st.rerun()
+
+        with clue_col:
+            st.markdown("**Clues**")
+            for w in WORD_SEARCH_WORDS:
+                icon = "✅" if w["answer"] in found else "🔲"
+                st.markdown(f"{icon} {w['clue']} *({len(w['answer'])} letters)*")
+
+            current_word = "".join(grid[r][c] for r, c in selected)
+            st.text_input("Selected letters", value=current_word, disabled=True)
+
+            b1, b2 = st.columns(2)
+            if b1.button("Clear", use_container_width=True):
+                st.session_state[sel_key] = []
                 st.rerun()
-            else:
-                st.error("Not quite — check your spelling and try again.")
+
+            if b2.button("Submit Word", type="primary", use_container_width=True):
+                match = None
+                for w in WORD_SEARCH_WORDS:
+                    if w["answer"] in found:
+                        continue
+                    if current_word in (w["answer"], w["answer"][::-1]):
+                        match = w["answer"]
+                        break
+
+                if match:
+                    found.add(match)
+                    st.session_state[sel_key] = []
+                    if len(found) == len(WORD_SEARCH_WORDS):
+                        advance(team_id, 5)
+                        st.success("🎉 All words found! Pyramid finished!")
+                        time.sleep(0.8)
+                    else:
+                        st.success(f"✅ Found: {match}!")
+                    st.rerun()
+                else:
+                    st.error("Not one of the target words — try again.")
+                    st.session_state[sel_key] = []
+                    st.rerun()
 
 
 def presenter():
