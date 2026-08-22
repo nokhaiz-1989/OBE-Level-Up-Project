@@ -167,8 +167,11 @@ def pyramid(level):
 
 
 def celebrate(label):
-    """Confetti burst + simulated applause, generated entirely in the
-    browser (no external audio file needed, so nothing to host or license).
+    """Confetti burst + simulated round of applause, generated entirely in
+    the browser (no external audio file needed, so nothing to host or
+    license, and nothing that can 404). Dozens of short overlapping "clap"
+    grains are layered under one swelling volume envelope so it reads as a
+    crowd applauding rather than a handful of isolated clicks.
     Some browsers block audio until the page has had one click anywhere --
     if sound is silent the very first time, just click the screen once."""
     components.html(
@@ -196,40 +199,49 @@ def celebrate(label):
             try {{
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-                function playClap(startTime) {{
-                    // Short burst of decaying filtered noise = one "clap"
-                    const bufferSize = Math.floor(ctx.sampleRate * 0.12);
-                    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) {{
-                        const decay = Math.pow(1 - i / bufferSize, 2);
-                        data[i] = (Math.random() * 2 - 1) * decay;
-                    }}
+                // One master fader shapes the whole round of applause:
+                // quick swell in, sustain, then fade out -- like a crowd.
+                const master = ctx.createGain();
+                master.gain.setValueAtTime(0.0001, ctx.currentTime);
+                master.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.25);
+                master.gain.setValueAtTime(0.9, ctx.currentTime + 1.6);
+                master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.4);
+                master.connect(ctx.destination);
+
+                // A single short noise-burst "clap" grain, reused for every hit.
+                const bufferSize = Math.floor(ctx.sampleRate * 0.06);
+                const clapBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = clapBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {{
+                    const decay = Math.pow(1 - i / bufferSize, 3);
+                    data[i] = (Math.random() * 2 - 1) * decay;
+                }}
+
+                function playClap(startTime, vol) {{
                     const noise = ctx.createBufferSource();
-                    noise.buffer = buffer;
+                    noise.buffer = clapBuffer;
 
                     const bandpass = ctx.createBiquadFilter();
                     bandpass.type = 'bandpass';
-                    bandpass.frequency.value = 1200 + Math.random() * 800;
-                    bandpass.Q.value = 0.8;
+                    bandpass.frequency.value = 1800 + Math.random() * 2200;
+                    bandpass.Q.value = 0.6 + Math.random() * 0.8;
 
                     const gain = ctx.createGain();
-                    gain.gain.setValueAtTime(0.5, startTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+                    gain.gain.value = vol;
 
                     noise.connect(bandpass);
                     bandpass.connect(gain);
-                    gain.connect(ctx.destination);
-
+                    gain.connect(master);
                     noise.start(startTime);
-                    noise.stop(startTime + 0.12);
                 }}
 
-                // A round of applause: ~18 irregularly-timed claps over ~1.6s
-                let t = ctx.currentTime + 0.05;
-                for (let i = 0; i < 18; i++) {{
-                    playClap(t);
-                    t += 0.06 + Math.random() * 0.08;
+                // ~90 overlapping claps scattered across ~2.2s = a full round of applause.
+                const duration = 2.2;
+                const numClaps = 90;
+                const t0 = ctx.currentTime + 0.05;
+                for (let i = 0; i < numClaps; i++) {{
+                    const t = t0 + Math.random() * duration;
+                    playClap(t, 0.4 + Math.random() * 0.6);
                 }}
             }} catch (e) {{}}
         }})();
