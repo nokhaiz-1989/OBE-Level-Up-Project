@@ -1,5 +1,7 @@
 import streamlit as st
 import time
+import random
+import string
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="OBE Level-Up", page_icon="🏗️", layout="wide")
