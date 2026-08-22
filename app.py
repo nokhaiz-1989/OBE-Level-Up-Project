@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="OBE Level-Up", page_icon="🏗️", layout="wide")
 
@@ -62,11 +63,20 @@ QUESTIONS = {
     }
 }
 
-if "teams" not in st.session_state:
-    st.session_state.teams = {
+@st.cache_resource
+def get_shared_teams():
+    """A single dict shared by EVERY browser session connected to this app.
+    st.session_state is per-device, so team progress typed on a student's
+    phone would never reach the presenter's screen. st.cache_resource with
+    no arguments returns the exact same object to every session, so mutating
+    it here updates it everywhere -- this is what makes the game 'live'."""
+    return {
         i: {"level": 1, "score": 0, "completed": [False] * 5}
         for i in range(1, 6)
     }
+
+
+teams = get_shared_teams()
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
@@ -108,7 +118,7 @@ def pyramid(level):
 
 
 def advance(team_id, level):
-    t = st.session_state.teams[team_id]
+    t = teams[team_id]
     t["completed"][level - 1] = True
     t["level"] = level + 1
     t["score"] += 100
@@ -142,7 +152,7 @@ def join():
     team = st.selectbox("Select your team", [f"Team {i}" for i in range(1, 6)])
     team_id = int(team.split()[-1])
 
-    t = st.session_state.teams[team_id]
+    t = teams[team_id]
     st.info(f"{team} is currently on Level {t['level']}.")
 
     if st.button("ENTER GAME", type="primary", use_container_width=True):
@@ -157,7 +167,7 @@ def join():
 
 def team_game():
     team_id = st.session_state.team
-    t = st.session_state.teams[team_id]
+    t = teams[team_id]
     level = t["level"]
 
     st.title(f"🏗️ Team {team_id}")
@@ -208,6 +218,10 @@ def team_game():
 
 
 def presenter():
+    # Silently reruns this page every 2 seconds so scores/pyramids update
+    # on the projector without anyone clicking Refresh.
+    st_autorefresh(interval=2000, key="presenter_autorefresh")
+
     st.markdown(
         "<h1 style='text-align:center;'>📺 OBE LEVEL-UP — LIVE PRESENTER DASHBOARD</h1>",
         unsafe_allow_html=True
@@ -217,7 +231,7 @@ def presenter():
     cols = st.columns(5)
 
     for i, col in enumerate(cols, start=1):
-        t = st.session_state.teams[i]
+        t = teams[i]
         level = min(t["level"], 5)
         done = sum(t["completed"])
 
@@ -246,7 +260,7 @@ def presenter():
     # ---- Leaderboard, sorted by score, big and readable from a distance ----
     st.subheader("🏆 Leaderboard")
     ranked = sorted(
-        st.session_state.teams.items(),
+        teams.items(),
         key=lambda kv: (-kv[1]["score"], -sum(kv[1]["completed"]))
     )
     medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
@@ -271,7 +285,7 @@ def presenter():
         header[i].markdown(f"**{i}. {name}**")
 
     for i in range(1, 6):
-        t = st.session_state.teams[i]
+        t = teams[i]
         row = st.columns(6)
         row[0].markdown(f"**Team {i}**")
         for j in range(5):
@@ -301,7 +315,7 @@ def demo():
     st.caption("Use this to test the presenter screen before the real multiplayer version.")
 
     for i in range(1, 6):
-        t = st.session_state.teams[i]
+        t = teams[i]
         c1, c2 = st.columns([2, 1])
         c1.write(f"Team {i} — Level {t['level']}")
         if c2.button(f"Advance Team {i}", key=f"advance_{i}"):
@@ -310,10 +324,10 @@ def demo():
             st.rerun()
 
     if st.button("Reset All Teams"):
-        st.session_state.teams = {
-            i: {"level": 1, "score": 0, "completed": [False] * 5}
-            for i in range(1, 6)
-        }
+        for i in range(1, 6):
+            teams[i]["level"] = 1
+            teams[i]["score"] = 0
+            teams[i]["completed"] = [False] * 5
         st.rerun()
 
     if st.button("← Home"):
