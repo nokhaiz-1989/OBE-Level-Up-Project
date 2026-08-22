@@ -324,7 +324,6 @@ elif st.session_state.page == "demo":
         ],
         "answer": 2
     }
-}
 
 if "teams" not in st.session_state:
     st.session_state.teams = {
