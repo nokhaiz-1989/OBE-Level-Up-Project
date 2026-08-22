@@ -5,7 +5,7 @@ st.set_page_config(page_title="OBE Level-Up", page_icon="🏗️", layout="wide"
 
 LEVELS = ["IDENTIFY", "DEFINE", "DESIGN", "ALIGN", "REFINE"]
 
-QUESTIONS = {import streamlit as st
+QUESTIONS = import streamlit as st
 import time
 
 st.set_page_config(page_title="OBE Level-Up", page_icon="🏗️", layout="wide")
