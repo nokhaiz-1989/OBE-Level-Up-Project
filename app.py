@@ -12,6 +12,18 @@ LEVELS = ["IDENTIFY", "DEFINE", "DESIGN", "ALIGN", "REFINE"]
 # One color per level — used for the projector pyramid bricks
 LEVEL_COLORS = ["#4C6EF5", "#15AABF", "#40C057", "#F59F00", "#F03E3E"]
 
+# Simple, neutral phonetic-alphabet labels -- unrelated to any level name
+# (IDENTIFY, DEFINE, DESIGN, ALIGN, REFINE) or in-game vocabulary (OUTCOME,
+# RUBRIC, ALIGNMENT) so they're never confused on the projector. Teams can
+# rename themselves on the join screen if they prefer something else.
+DEFAULT_TEAM_NAMES = {
+    1: "Team Alpha",
+    2: "Team Bravo",
+    3: "Team Charlie",
+    4: "Team Delta",
+    5: "Team Echo",
+}
+
 QUESTIONS = {
     1: {
         "title": "🧩 LEVEL 1 — SORT THE EVIDENCE",
@@ -118,6 +130,7 @@ def get_shared_teams():
             "level": 1,
             "score": 0,
             "completed": [False] * 5,
+            "name": DEFAULT_TEAM_NAMES[i],
             "celebrated_team": False,       # has the team's own screen played the confetti yet
             "celebrated_presenter": False,  # has the presenter screen played it for this team yet
         }
@@ -229,16 +242,27 @@ def home():
 
 def join():
     st.title("👥 Join OBE Level-Up")
-    team = st.selectbox("Select your team", [f"Team {i}" for i in range(1, 6)])
+    team = st.selectbox("Select your team slot", [f"Team {i}" for i in range(1, 6)])
     team_id = int(team.split()[-1])
 
     t = teams[team_id]
+
+    name_input = st.text_input(
+        "Give your team a catchy name",
+        value=t["name"],
+        max_chars=30,
+        key=f"name_input_{team_id}"
+    )
+
     if t["level"] > 5:
-        st.info(f"{team} has completed all levels! 🏆")
+        st.info(f"**{t['name']}** has completed all levels! 🏆")
     else:
-        st.info(f"{team} is currently on Level {t['level']}.")
+        st.info(f"**{t['name']}** is currently on Level {t['level']}.")
 
     if st.button("ENTER GAME", type="primary", use_container_width=True):
+        cleaned = name_input.strip()
+        if cleaned:
+            t["name"] = cleaned
         st.session_state.team = team_id
         st.session_state.page = "team"
         st.rerun()
@@ -253,13 +277,14 @@ def team_game():
     t = teams[team_id]
     level = t["level"]
 
-    st.title(f"🏗️ Team {team_id}")
+    st.title(f"🏗️ {t['name']}")
+    st.caption(f"Team {team_id}")
 
     if level > 5:
         st.success("🏆 OBE MASTER — YOUR PYRAMID IS COMPLETE!")
         st.markdown(pyramid(5), unsafe_allow_html=True)
         if not t["celebrated_team"]:
-            celebrate(f"Team {team_id} finished the pyramid!")
+            celebrate(f"{t['name']} finished the pyramid!")
             t["celebrated_team"] = True
         return
 
@@ -445,7 +470,7 @@ def presenter():
 
         with col:
             st.markdown(
-                f"<h4 style='text-align:center;margin:0;'>Team {i}</h4>",
+                f"<h4 style='text-align:center;margin:0;' title='Team {i}'>{t['name']}</h4>",
                 unsafe_allow_html=True
             )
             status = "🏆 COMPLETE" if t["level"] > 5 else f"LEVEL {t['level']}"
@@ -463,7 +488,7 @@ def presenter():
                 unsafe_allow_html=True
             )
             if just_finished:
-                celebrate(f"Team {i} finished the pyramid!")
+                celebrate(f"{t['name']} finished the pyramid!")
                 t["celebrated_presenter"] = True
 
     st.divider()
@@ -478,7 +503,7 @@ def presenter():
     for i in range(1, 6):
         t = teams[i]
         row = st.columns(6)
-        row[0].markdown(f"**Team {i}**")
+        row[0].markdown(f"**{t['name']}**")
         for j in range(5):
             done = t["completed"][j]
             color = LEVEL_COLORS[j] if done else "#E9ECEF"
@@ -508,7 +533,7 @@ def demo():
         t = teams[i]
         c1, c2 = st.columns([2, 1])
         status = "COMPLETE" if t["level"] > 5 else f"Level {t['level']}"
-        c1.write(f"Team {i} — {status}")
+        c1.write(f"**{t['name']}** (Team {i}) — {status}")
         if c2.button(f"Advance Team {i}", key=f"advance_{i}"):
             if t["level"] <= 5:
                 advance(i, t["level"])
@@ -519,6 +544,7 @@ def demo():
             teams[i]["level"] = 1
             teams[i]["score"] = 0
             teams[i]["completed"] = [False] * 5
+            teams[i]["name"] = DEFAULT_TEAM_NAMES[i]
             teams[i]["celebrated_team"] = False
             teams[i]["celebrated_presenter"] = False
             st.session_state.pop(f"l5_grid_{i}", None)
