@@ -242,17 +242,10 @@ def home():
 
 def join():
     st.title("👥 Join OBE Level-Up")
-    team = st.selectbox("Select your team slot", [f"Team {i}" for i in range(1, 6)])
-    team_id = int(team.split()[-1])
+    team = st.selectbox("Select your team", [t["name"] for t in teams.values()])
+    team_id = next(i for i, tm in teams.items() if tm["name"] == team)
 
     t = teams[team_id]
-
-    name_input = st.text_input(
-        "Give your team a catchy name",
-        value=t["name"],
-        max_chars=30,
-        key=f"name_input_{team_id}"
-    )
 
     if t["level"] > 5:
         st.info(f"**{t['name']}** has completed all levels! 🏆")
@@ -260,9 +253,6 @@ def join():
         st.info(f"**{t['name']}** is currently on Level {t['level']}.")
 
     if st.button("ENTER GAME", type="primary", use_container_width=True):
-        cleaned = name_input.strip()
-        if cleaned:
-            t["name"] = cleaned
         st.session_state.team = team_id
         st.session_state.page = "team"
         st.rerun()
