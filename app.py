@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import streamlit.components.v1 as components
 import time
@@ -87,36 +88,40 @@ WORD_SEARCH_WORDS = [
         "answer": "ALIGNMENT",
         "clue": "When the outcome, the learning activity, and the assessment all point to the same goal.",
         "start": (0, 0),
-        "dir": (0, 1),   # left to right
+        "dir": (0, 1),
     },
     {
         "answer": "OUTCOME",
         "clue": "The intended result of learning, stated as what a student will be able to do.",
         "start": (0, 9),
-        "dir": (1, 0),   # top to bottom
+        "dir": (1, 0),
     },
     {
         "answer": "RUBRIC",
         "clue": "A scoring guide that spells out the criteria used to judge performance.",
         "start": (2, 0),
-        "dir": (1, 1),   # diagonal down-right
+        "dir": (1, 1),
     },
 ]
 
 
 def build_word_search_grid():
     grid = [[None] * WORD_SEARCH_SIZE for _ in range(WORD_SEARCH_SIZE)]
+
     for w in WORD_SEARCH_WORDS:
         r, c = w["start"]
         dr, dc = w["dir"]
+
         for ch in w["answer"]:
             grid[r][c] = ch
             r += dr
             c += dc
+
     for r in range(WORD_SEARCH_SIZE):
         for c in range(WORD_SEARCH_SIZE):
             if grid[r][c] is None:
                 grid[r][c] = random.choice(string.ascii_uppercase)
+
     return grid
 
 
@@ -155,6 +160,7 @@ def pyramid(level):
     widths = [30, 45, 60, 75, 90]
     rows = []
 
+    # Build top-to-bottom so it visually looks like a pyramid
     for i in range(4, -1, -1):
         completed = i < level
         color = LEVEL_COLORS[i] if completed else "#E9ECEF"
@@ -213,10 +219,8 @@ def celebrate(label):
     )
 
 
-# ---------------------------------------------------------
-# LEVEL COMPLETION SOUND — PLAYS ONLY ON TEAM DEVICE
-# ---------------------------------------------------------
 def play_level_sound():
+    """Play the custom level-completion sound ONLY in the team's browser."""
     with open("level_complete.mp3", "rb") as audio_file:
         audio_bytes = audio_file.read()
 
@@ -224,9 +228,24 @@ def play_level_sound():
 
     components.html(
         f"""
-        <audio autoplay>
+        <audio id="levelSound" autoplay>
             <source src="data:audio/mpeg;base64,{audio_base64}" type="audio/mpeg">
         </audio>
+
+        <script>
+        (function() {{
+            const audio = document.getElementById("levelSound");
+            audio.volume = 1.0;
+
+            function playSound() {{
+                audio.play().catch(function(error) {{
+                    console.log("Audio playback was blocked:", error);
+                }});
+            }}
+
+            playSound();
+        }})();
+        </script>
         """,
         height=1,
     )
@@ -345,14 +364,14 @@ def team_game():
     if level == 5:
         st.subheader("🔁 LEVEL 5 — REFINE THE LOOP")
         st.write(
-            "Find all 3 hidden words in the grid. "
-            "Click letters to select them, then press Submit Word."
+            "Find all 3 hidden words in the grid. Click letters to select them, then press Submit Word."
         )
     else:
         st.subheader(QUESTIONS[level]["title"])
         st.write(QUESTIONS[level]["text"])
 
     if level in [1, 2, 4]:
+
         options = QUESTIONS[level]["options"]
 
         order_key = f"order_{team_id}_{level}"
@@ -376,23 +395,25 @@ def team_game():
             type="primary",
             use_container_width=True
         ):
+
             actual_choice = order[choice_pos]
 
             if actual_choice == QUESTIONS[level]["answer"]:
 
                 advance(team_id, level)
 
-                # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                # SOUND PLAYS ONLY ON THIS TEAM'S DEVICE
                 play_level_sound()
 
                 st.session_state.pop(order_key, None)
 
                 st.success(
-                    f"🎉 Level {level} complete! "
-                    f"Level {level + 1} unlocked."
+                    f"🎉 Level {level} complete! Level {level + 1} unlocked."
                 )
 
-                time.sleep(0.6)
+                # Give the browser time to start the audio
+                time.sleep(1.5)
+
                 st.rerun()
 
             else:
@@ -431,7 +452,7 @@ def team_game():
 
                 advance(team_id, 3)
 
-                # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                # SOUND PLAYS ONLY ON THIS TEAM'S DEVICE
                 play_level_sound()
 
                 st.session_state.pop(pool_key, None)
@@ -440,13 +461,14 @@ def team_game():
                     "🎉 Level 3 complete! Level 4 unlocked."
                 )
 
-                time.sleep(0.6)
+                # Give the browser time to start the audio
+                time.sleep(1.5)
+
                 st.rerun()
 
             else:
                 st.error(
-                    "Reconsider the movement from support "
-                    "toward independence."
+                    "Reconsider the movement from support toward independence."
                 )
 
     elif level == 5:
@@ -483,6 +505,7 @@ def team_game():
 
                     letter = grid[r][c]
                     is_selected = (r, c) in selected
+
                     btn_type = (
                         "primary"
                         if is_selected
@@ -516,8 +539,7 @@ def team_game():
                 )
 
                 st.markdown(
-                    f"{icon} {w['clue']} "
-                    f"*({len(w['answer'])} letters)*"
+                    f"{icon} {w['clue']} *({len(w['answer'])} letters)*"
                 )
 
             current_word = "".join(
@@ -569,14 +591,15 @@ def team_game():
 
                         advance(team_id, 5)
 
-                        # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                        # SOUND PLAYS ONLY ON THIS TEAM'S DEVICE
                         play_level_sound()
 
                         st.success(
                             "🎉 All words found! Pyramid finished!"
                         )
 
-                        time.sleep(0.8)
+                        # Give the browser time to start the audio
+                        time.sleep(1.5)
 
                     else:
 
@@ -598,12 +621,15 @@ def team_game():
 
 def presenter():
 
-    # Silently reruns this page every 2 seconds
+    # Silently reruns this page every 2 seconds so scores/pyramids update
+    # on the projector without anyone clicking Refresh.
     st_autorefresh(
         interval=2000,
         key="presenter_autorefresh"
     )
 
+    # Tighten Streamlit's default padding/margins so the whole dashboard
+    # fits on one screen without scrolling on a typical projector/TV.
     st.markdown(
         """
         <style>
@@ -621,9 +647,7 @@ def presenter():
     )
 
     st.markdown(
-        "<h2 style='text-align:center;margin-bottom:0;'>"
-        "📺 OBE LEVEL-UP — LIVE DASHBOARD"
-        "</h2>",
+        "<h2 style='text-align:center;margin-bottom:0;'>📺 OBE LEVEL-UP — LIVE DASHBOARD</h2>",
         unsafe_allow_html=True
     )
 
@@ -655,10 +679,8 @@ def presenter():
             )
 
             st.markdown(
-                f"<div style='text-align:center;font-size:18px;"
-                f"font-weight:800;"
-                f"color:{'#F03E3E' if t['level']>5 else '#212529'};"
-                f"margin-bottom:2px;'>"
+                f"<div style='text-align:center;font-size:18px;font-weight:800;"
+                f"color:{'#F03E3E' if t['level']>5 else '#212529'};margin-bottom:2px;'>"
                 f"{status}</div>",
                 unsafe_allow_html=True
             )
@@ -671,8 +693,7 @@ def presenter():
             st.progress(done / 5)
 
             st.markdown(
-                f"<div style='text-align:center;font-size:13px;"
-                f"color:#666;margin-top:2px;'>"
+                f"<div style='text-align:center;font-size:13px;color:#666;margin-top:2px;'>"
                 f"{done}/5 levels • {t['score']} pts</div>",
                 unsafe_allow_html=True
             )
@@ -687,10 +708,9 @@ def presenter():
 
     st.divider()
 
+    # ---- Level-by-level progress grid, shown directly ----
     st.markdown(
-        "<h4 style='margin:0.2rem 0;'>"
-        "📋 Level-by-Level Progress"
-        "</h4>",
+        "<h4 style='margin:0.2rem 0;'>📋 Level-by-Level Progress</h4>",
         unsafe_allow_html=True
     )
 
@@ -715,6 +735,7 @@ def presenter():
         for j in range(5):
 
             done = t["completed"][j]
+
             color = (
                 LEVEL_COLORS[j]
                 if done
@@ -724,12 +745,9 @@ def presenter():
             text = "✓" if done else ""
 
             row[j + 1].markdown(
-                f"<div style='background:{color};"
-                f"border-radius:6px;height:28px;"
-                f"display:flex;align-items:center;"
-                f"justify-content:center;"
-                f"color:white;font-weight:700;"
-                f"font-size:13px;'>{text}</div>",
+                f"<div style='background:{color};border-radius:6px;height:28px;"
+                f"display:flex;align-items:center;justify-content:center;"
+                f"color:white;font-weight:700;font-size:13px;'>{text}</div>",
                 unsafe_allow_html=True
             )
 
@@ -756,8 +774,7 @@ def demo():
     st.title("⚙️ Demo Control")
 
     st.caption(
-        "Use this to test the presenter screen "
-        "before the real multiplayer version."
+        "Use this to test the presenter screen before the real multiplayer version."
     )
 
     for i in range(1, 6):
@@ -772,8 +789,7 @@ def demo():
         )
 
         c1.write(
-            f"**{t['name']}** "
-            f"(Team {i}) — {status}"
+            f"**{t['name']}** (Team {i}) — {status}"
         )
 
         if c2.button(
@@ -833,3 +849,4 @@ elif st.session_state.page == "presenter":
 
 elif st.session_state.page == "demo":
     demo()
+```
