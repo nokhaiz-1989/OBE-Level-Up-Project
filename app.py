@@ -848,4 +848,3 @@ elif st.session_state.page == "presenter":
 
 elif st.session_state.page == "demo":
     demo()
-```
