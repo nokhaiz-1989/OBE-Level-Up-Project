@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import time
 import random
 import string
+import base64
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="OBE Level-Up", page_icon="🏗️", layout="wide")
@@ -118,6 +119,7 @@ def build_word_search_grid():
                 grid[r][c] = random.choice(string.ascii_uppercase)
     return grid
 
+
 @st.cache_resource
 def get_shared_teams():
     """A single dict shared by EVERY browser session connected to this app.
@@ -131,8 +133,8 @@ def get_shared_teams():
             "score": 0,
             "completed": [False] * 5,
             "name": DEFAULT_TEAM_NAMES[i],
-            "celebrated_team": False,       # has the team's own screen played the confetti yet
-            "celebrated_presenter": False,  # has the presenter screen played it for this team yet
+            "celebrated_team": False,
+            "celebrated_presenter": False,
         }
         for i in range(1, 6)
     }
@@ -150,14 +152,15 @@ if "team" not in st.session_state:
 def pyramid(level):
     """Render a projector-friendly pyramid using colored HTML bricks
     instead of monospace block characters."""
-    widths = [30, 45, 60, 75, 90]  # percent width, narrow at top -> wide at base
+    widths = [30, 45, 60, 75, 90]
     rows = []
-    # Build top-to-bottom so it visually looks like a pyramid (level 5 label on top)
+
     for i in range(4, -1, -1):
         completed = i < level
         color = LEVEL_COLORS[i] if completed else "#E9ECEF"
         text_color = "#FFFFFF" if completed else "#ADB5BD"
         label = LEVELS[i] if completed else "🔒"
+
         rows.append(
             f'''
             <div style="
@@ -176,12 +179,12 @@ def pyramid(level):
             ">{label}</div>
             '''
         )
+
     return "".join(rows)
 
 
 def celebrate(label):
-    """Confetti burst, generated entirely in the browser (no external file
-    needed, so nothing to host or license)."""
+    """Confetti burst, generated entirely in the browser."""
     components.html(
         f"""
         <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
@@ -210,6 +213,25 @@ def celebrate(label):
     )
 
 
+# ---------------------------------------------------------
+# LEVEL COMPLETION SOUND — PLAYS ONLY ON TEAM DEVICE
+# ---------------------------------------------------------
+def play_level_sound():
+    with open("level_complete.mp3", "rb") as audio_file:
+        audio_bytes = audio_file.read()
+
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+
+    components.html(
+        f"""
+        <audio autoplay>
+            <source src="data:audio/mpeg;base64,{audio_base64}" type="audio/mpeg">
+        </audio>
+        """,
+        height=1,
+    )
+
+
 def advance(team_id, level):
     t = teams[team_id]
     t["completed"][level - 1] = True
@@ -222,37 +244,67 @@ def home():
         "<h1 style='text-align:center;font-size:52px;'>🏗️ OBE LEVEL-UP</h1>",
         unsafe_allow_html=True
     )
+
     st.markdown(
         "<h3 style='text-align:center;color:#666;'>Build the Pyramid. Align the Learning.</h3>",
         unsafe_allow_html=True
     )
+
     st.write("")
-    st.info("Five teams. Five challenges. Complete each level to build your OBE pyramid.")
+
+    st.info(
+        "Five teams. Five challenges. Complete each level to build your OBE pyramid."
+    )
 
     a, b = st.columns(2)
+
     with a:
-        if st.button("👥 JOIN AS TEAM", use_container_width=True, type="primary"):
+        if st.button(
+            "👥 JOIN AS TEAM",
+            use_container_width=True,
+            type="primary"
+        ):
             st.session_state.page = "join"
             st.rerun()
+
     with b:
-        if st.button("📺 PRESENTER DASHBOARD", use_container_width=True):
+        if st.button(
+            "📺 PRESENTER DASHBOARD",
+            use_container_width=True
+        ):
             st.session_state.page = "presenter"
             st.rerun()
 
 
 def join():
     st.title("👥 Join OBE Level-Up")
-    team = st.selectbox("Select your team", [t["name"] for t in teams.values()])
-    team_id = next(i for i, tm in teams.items() if tm["name"] == team)
+
+    team = st.selectbox(
+        "Select your team",
+        [t["name"] for t in teams.values()]
+    )
+
+    team_id = next(
+        i for i, tm in teams.items()
+        if tm["name"] == team
+    )
 
     t = teams[team_id]
 
     if t["level"] > 5:
-        st.info(f"**{t['name']}** has completed all levels! 🏆")
+        st.info(
+            f"**{t['name']}** has completed all levels! 🏆"
+        )
     else:
-        st.info(f"**{t['name']}** is currently on Level {t['level']}.")
+        st.info(
+            f"**{t['name']}** is currently on Level {t['level']}."
+        )
 
-    if st.button("ENTER GAME", type="primary", use_container_width=True):
+    if st.button(
+        "ENTER GAME",
+        type="primary",
+        use_container_width=True
+    ):
         st.session_state.team = team_id
         st.session_state.page = "team"
         st.rerun()
@@ -271,18 +323,31 @@ def team_game():
     st.caption(f"Team {team_id}")
 
     if level > 5:
-        st.success("🏆 OBE MASTER — YOUR PYRAMID IS COMPLETE!")
-        st.markdown(pyramid(5), unsafe_allow_html=True)
+        st.success(
+            "🏆 OBE MASTER — YOUR PYRAMID IS COMPLETE!"
+        )
+
+        st.markdown(
+            pyramid(5),
+            unsafe_allow_html=True
+        )
+
         if not t["celebrated_team"]:
-            celebrate(f"{t['name']} finished the pyramid!")
+            celebrate(
+                f"{t['name']} finished the pyramid!"
+            )
             t["celebrated_team"] = True
+
         return
 
     st.progress((level - 1) / 5)
 
     if level == 5:
         st.subheader("🔁 LEVEL 5 — REFINE THE LOOP")
-        st.write("Find all 3 hidden words in the grid. Click letters to select them, then press Submit Word.")
+        st.write(
+            "Find all 3 hidden words in the grid. "
+            "Click letters to select them, then press Submit Word."
+        )
     else:
         st.subheader(QUESTIONS[level]["title"])
         st.write(QUESTIONS[level]["text"])
@@ -290,14 +355,13 @@ def team_game():
     if level in [1, 2, 4]:
         options = QUESTIONS[level]["options"]
 
-        # Shuffle option order per-team so different teams (and the
-        # presenter watching multiple screens) can't rely on option
-        # position matching between teams.
         order_key = f"order_{team_id}_{level}"
+
         if order_key not in st.session_state:
             order = list(range(len(options)))
             random.shuffle(order)
             st.session_state[order_key] = order
+
         order = st.session_state[order_key]
 
         choice_pos = st.radio(
@@ -307,27 +371,48 @@ def team_game():
             key=f"q_{team_id}_{level}"
         )
 
-        if st.button("SUBMIT CHALLENGE", type="primary", use_container_width=True):
+        if st.button(
+            "SUBMIT CHALLENGE",
+            type="primary",
+            use_container_width=True
+        ):
             actual_choice = order[choice_pos]
+
             if actual_choice == QUESTIONS[level]["answer"]:
+
                 advance(team_id, level)
+
+                # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                play_level_sound()
+
                 st.session_state.pop(order_key, None)
-                st.success(f"🎉 Level {level} complete! Level {level + 1} unlocked.")
+
+                st.success(
+                    f"🎉 Level {level} complete! "
+                    f"Level {level + 1} unlocked."
+                )
+
                 time.sleep(0.6)
                 st.rerun()
+
             else:
-                st.error("Not quite. Discuss it and try again.")
+                st.error(
+                    "Not quite. Discuss it and try again."
+                )
 
     elif level == 3:
-        st.write("Select the blocks in the order your team recommends.")
 
-        # Shuffle the pool of blocks per-team so the starting layout isn't
-        # identical across teams -- the correct sequence itself is unchanged.
+        st.write(
+            "Select the blocks in the order your team recommends."
+        )
+
         pool_key = f"pool_{team_id}_3"
+
         if pool_key not in st.session_state:
             pool = QUESTIONS[3]["options"][:]
             random.shuffle(pool)
             st.session_state[pool_key] = pool
+
         pool = st.session_state[pool_key]
 
         selected = st.multiselect(
@@ -336,25 +421,46 @@ def team_game():
             key=f"q_{team_id}_3"
         )
 
-        if st.button("SUBMIT SEQUENCE", type="primary", use_container_width=True):
+        if st.button(
+            "SUBMIT SEQUENCE",
+            type="primary",
+            use_container_width=True
+        ):
+
             if selected == QUESTIONS[3]["answer"]:
+
                 advance(team_id, 3)
+
+                # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                play_level_sound()
+
                 st.session_state.pop(pool_key, None)
-                st.success("🎉 Level 3 complete! Level 4 unlocked.")
+
+                st.success(
+                    "🎉 Level 3 complete! Level 4 unlocked."
+                )
+
                 time.sleep(0.6)
                 st.rerun()
+
             else:
-                st.error("Reconsider the movement from support toward independence.")
+                st.error(
+                    "Reconsider the movement from support "
+                    "toward independence."
+                )
 
     elif level == 5:
+
         grid_key = f"l5_grid_{team_id}"
         sel_key = f"l5_selected_{team_id}"
         found_key = f"l5_found_{team_id}"
 
         if grid_key not in st.session_state:
             st.session_state[grid_key] = build_word_search_grid()
+
         if sel_key not in st.session_state:
             st.session_state[sel_key] = []
+
         if found_key not in st.session_state:
             st.session_state[found_key] = set()
 
@@ -365,70 +471,139 @@ def team_game():
         grid_col, clue_col = st.columns([3, 2])
 
         with grid_col:
+
             for r in range(WORD_SEARCH_SIZE):
-                row_cells = st.columns(WORD_SEARCH_SIZE, gap="small")
+
+                row_cells = st.columns(
+                    WORD_SEARCH_SIZE,
+                    gap="small"
+                )
+
                 for c in range(WORD_SEARCH_SIZE):
+
                     letter = grid[r][c]
                     is_selected = (r, c) in selected
-                    btn_type = "primary" if is_selected else "secondary"
+                    btn_type = (
+                        "primary"
+                        if is_selected
+                        else "secondary"
+                    )
+
                     if row_cells[c].button(
                         letter,
                         key=f"cell_{team_id}_{r}_{c}",
                         type=btn_type,
                         use_container_width=True
                     ):
+
                         if is_selected:
                             selected.remove((r, c))
                         else:
                             selected.append((r, c))
+
                         st.rerun()
 
         with clue_col:
-            st.markdown("**Clues**")
-            for w in WORD_SEARCH_WORDS:
-                icon = "✅" if w["answer"] in found else "🔲"
-                st.markdown(f"{icon} {w['clue']} *({len(w['answer'])} letters)*")
 
-            current_word = "".join(grid[r][c] for r, c in selected)
-            st.text_input("Selected letters", value=current_word, disabled=True)
+            st.markdown("**Clues**")
+
+            for w in WORD_SEARCH_WORDS:
+
+                icon = (
+                    "✅"
+                    if w["answer"] in found
+                    else "🔲"
+                )
+
+                st.markdown(
+                    f"{icon} {w['clue']} "
+                    f"*({len(w['answer'])} letters)*"
+                )
+
+            current_word = "".join(
+                grid[r][c]
+                for r, c in selected
+            )
+
+            st.text_input(
+                "Selected letters",
+                value=current_word,
+                disabled=True
+            )
 
             b1, b2 = st.columns(2)
-            if b1.button("Clear", use_container_width=True):
+
+            if b1.button(
+                "Clear",
+                use_container_width=True
+            ):
                 st.session_state[sel_key] = []
                 st.rerun()
 
-            if b2.button("Submit Word", type="primary", use_container_width=True):
+            if b2.button(
+                "Submit Word",
+                type="primary",
+                use_container_width=True
+            ):
+
                 match = None
+
                 for w in WORD_SEARCH_WORDS:
+
                     if w["answer"] in found:
                         continue
-                    if current_word in (w["answer"], w["answer"][::-1]):
+
+                    if current_word in (
+                        w["answer"],
+                        w["answer"][::-1]
+                    ):
                         match = w["answer"]
                         break
 
                 if match:
+
                     found.add(match)
                     st.session_state[sel_key] = []
+
                     if len(found) == len(WORD_SEARCH_WORDS):
+
                         advance(team_id, 5)
-                        st.success("🎉 All words found! Pyramid finished!")
+
+                        # PLAY SOUND ONLY ON THE TEAM'S DEVICE
+                        play_level_sound()
+
+                        st.success(
+                            "🎉 All words found! Pyramid finished!"
+                        )
+
                         time.sleep(0.8)
+
                     else:
-                        st.success(f"✅ Found: {match}!")
+
+                        st.success(
+                            f"✅ Found: {match}!"
+                        )
+
                     st.rerun()
+
                 else:
-                    st.error("Not one of the target words — try again.")
+
+                    st.error(
+                        "Not one of the target words — try again."
+                    )
+
                     st.session_state[sel_key] = []
                     st.rerun()
 
 
 def presenter():
-    # Silently reruns this page every 2 seconds so scores/pyramids update
-    # on the projector without anyone clicking Refresh.
-    st_autorefresh(interval=2000, key="presenter_autorefresh")
 
-    # Tighten Streamlit's default padding/margins so the whole dashboard
-    # fits on one screen without scrolling on a typical projector/TV.
+    # Silently reruns this page every 2 seconds
+    st_autorefresh(
+        interval=2000,
+        key="presenter_autorefresh"
+    )
+
     st.markdown(
         """
         <style>
@@ -446,100 +621,197 @@ def presenter():
     )
 
     st.markdown(
-        "<h2 style='text-align:center;margin-bottom:0;'>📺 OBE LEVEL-UP — LIVE DASHBOARD</h2>",
+        "<h2 style='text-align:center;margin-bottom:0;'>"
+        "📺 OBE LEVEL-UP — LIVE DASHBOARD"
+        "</h2>",
         unsafe_allow_html=True
     )
 
     cols = st.columns(5)
 
     for i, col in enumerate(cols, start=1):
+
         t = teams[i]
         level = min(t["level"], 5)
         done = sum(t["completed"])
-        just_finished = t["level"] > 5 and not t["celebrated_presenter"]
+
+        just_finished = (
+            t["level"] > 5
+            and not t["celebrated_presenter"]
+        )
 
         with col:
+
             st.markdown(
-                f"<h4 style='text-align:center;margin:0;' title='Team {i}'>{t['name']}</h4>",
+                f"<h4 style='text-align:center;margin:0;' "
+                f"title='Team {i}'>{t['name']}</h4>",
                 unsafe_allow_html=True
             )
-            status = "🏆 COMPLETE" if t["level"] > 5 else f"LEVEL {t['level']}"
+
+            status = (
+                "🏆 COMPLETE"
+                if t["level"] > 5
+                else f"LEVEL {t['level']}"
+            )
+
             st.markdown(
-                f"<div style='text-align:center;font-size:18px;font-weight:800;"
-                f"color:{'#F03E3E' if t['level']>5 else '#212529'};margin-bottom:2px;'>"
+                f"<div style='text-align:center;font-size:18px;"
+                f"font-weight:800;"
+                f"color:{'#F03E3E' if t['level']>5 else '#212529'};"
+                f"margin-bottom:2px;'>"
                 f"{status}</div>",
                 unsafe_allow_html=True
             )
-            st.markdown(pyramid(level), unsafe_allow_html=True)
-            st.progress(done / 5)
+
             st.markdown(
-                f"<div style='text-align:center;font-size:13px;color:#666;margin-top:2px;'>"
+                pyramid(level),
+                unsafe_allow_html=True
+            )
+
+            st.progress(done / 5)
+
+            st.markdown(
+                f"<div style='text-align:center;font-size:13px;"
+                f"color:#666;margin-top:2px;'>"
                 f"{done}/5 levels • {t['score']} pts</div>",
                 unsafe_allow_html=True
             )
+
             if just_finished:
-                celebrate(f"{t['name']} finished the pyramid!")
+
+                celebrate(
+                    f"{t['name']} finished the pyramid!"
+                )
+
                 t["celebrated_presenter"] = True
 
     st.divider()
 
-    # ---- Level-by-level progress grid, shown directly (no leaderboard, no dropdown) ----
-    st.markdown("<h4 style='margin:0.2rem 0;'>📋 Level-by-Level Progress</h4>", unsafe_allow_html=True)
+    st.markdown(
+        "<h4 style='margin:0.2rem 0;'>"
+        "📋 Level-by-Level Progress"
+        "</h4>",
+        unsafe_allow_html=True
+    )
+
     header = st.columns(6)
+
     header[0].markdown("**TEAM**")
+
     for i, name in enumerate(LEVELS, start=1):
-        header[i].markdown(f"**{i}. {name}**")
+        header[i].markdown(
+            f"**{i}. {name}**"
+        )
 
     for i in range(1, 6):
+
         t = teams[i]
         row = st.columns(6)
-        row[0].markdown(f"**{t['name']}**")
+
+        row[0].markdown(
+            f"**{t['name']}**"
+        )
+
         for j in range(5):
+
             done = t["completed"][j]
-            color = LEVEL_COLORS[j] if done else "#E9ECEF"
+            color = (
+                LEVEL_COLORS[j]
+                if done
+                else "#E9ECEF"
+            )
+
             text = "✓" if done else ""
+
             row[j + 1].markdown(
-                f"<div style='background:{color};border-radius:6px;height:28px;"
-                f"display:flex;align-items:center;justify-content:center;"
-                f"color:white;font-weight:700;font-size:13px;'>{text}</div>",
+                f"<div style='background:{color};"
+                f"border-radius:6px;height:28px;"
+                f"display:flex;align-items:center;"
+                f"justify-content:center;"
+                f"color:white;font-weight:700;"
+                f"font-size:13px;'>{text}</div>",
                 unsafe_allow_html=True
             )
 
     c1, c2 = st.columns(2)
+
     with c1:
-        if st.button("🔄 Refresh Dashboard", use_container_width=True):
+        if st.button(
+            "🔄 Refresh Dashboard",
+            use_container_width=True
+        ):
             st.rerun()
+
     with c2:
-        if st.button("🏠 Home", use_container_width=True):
+        if st.button(
+            "🏠 Home",
+            use_container_width=True
+        ):
             st.session_state.page = "home"
             st.rerun()
 
 
 def demo():
+
     st.title("⚙️ Demo Control")
-    st.caption("Use this to test the presenter screen before the real multiplayer version.")
+
+    st.caption(
+        "Use this to test the presenter screen "
+        "before the real multiplayer version."
+    )
 
     for i in range(1, 6):
+
         t = teams[i]
         c1, c2 = st.columns([2, 1])
-        status = "COMPLETE" if t["level"] > 5 else f"Level {t['level']}"
-        c1.write(f"**{t['name']}** (Team {i}) — {status}")
-        if c2.button(f"Advance Team {i}", key=f"advance_{i}"):
+
+        status = (
+            "COMPLETE"
+            if t["level"] > 5
+            else f"Level {t['level']}"
+        )
+
+        c1.write(
+            f"**{t['name']}** "
+            f"(Team {i}) — {status}"
+        )
+
+        if c2.button(
+            f"Advance Team {i}",
+            key=f"advance_{i}"
+        ):
+
             if t["level"] <= 5:
                 advance(i, t["level"])
+
             st.rerun()
 
     if st.button("Reset All Teams"):
+
         for i in range(1, 6):
+
             teams[i]["level"] = 1
             teams[i]["score"] = 0
             teams[i]["completed"] = [False] * 5
             teams[i]["name"] = DEFAULT_TEAM_NAMES[i]
             teams[i]["celebrated_team"] = False
             teams[i]["celebrated_presenter"] = False
-            st.session_state.pop(f"l5_grid_{i}", None)
-            st.session_state.pop(f"l5_selected_{i}", None)
-            st.session_state.pop(f"l5_found_{i}", None)
+
+            st.session_state.pop(
+                f"l5_grid_{i}",
+                None
+            )
+
+            st.session_state.pop(
+                f"l5_selected_{i}",
+                None
+            )
+
+            st.session_state.pop(
+                f"l5_found_{i}",
+                None
+            )
+
         st.rerun()
 
     if st.button("← Home"):
@@ -549,11 +821,15 @@ def demo():
 
 if st.session_state.page == "home":
     home()
+
 elif st.session_state.page == "join":
     join()
+
 elif st.session_state.page == "team":
     team_game()
+
 elif st.session_state.page == "presenter":
     presenter()
+
 elif st.session_state.page == "demo":
     demo()
