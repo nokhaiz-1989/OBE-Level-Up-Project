@@ -23,7 +23,7 @@ DEFAULT_TEAM_NAMES = {
     3: "Team Charlie",
     4: "Team Delta",
     5: "Team Echo",
-    6: "Team Foxtrot",
+    6: "Fifa",
 }
 
 QUESTIONS = {
