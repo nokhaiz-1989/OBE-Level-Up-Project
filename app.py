@@ -23,6 +23,7 @@ DEFAULT_TEAM_NAMES = {
     3: "Team Charlie",
     4: "Team Delta",
     5: "Team Echo",
+    6: "Team Foxtrot",
 }
 
 QUESTIONS = {
@@ -140,7 +141,7 @@ def get_shared_teams():
             "celebrated_team": False,
             "celebrated_presenter": False,
         }
-        for i in range(1, 6)
+        for i in range(1, 7)
     }
 
 
@@ -650,7 +651,7 @@ def presenter():
         unsafe_allow_html=True
     )
 
-    cols = st.columns(5)
+    cols = st.columns(6)
 
     for i, col in enumerate(cols, start=1):
 
@@ -722,7 +723,7 @@ def presenter():
             f"**{i}. {name}**"
         )
 
-    for i in range(1, 6):
+    for i in range(1, 7):
 
         t = teams[i]
         row = st.columns(6)
@@ -776,7 +777,7 @@ def demo():
         "Use this to test the presenter screen before the real multiplayer version."
     )
 
-    for i in range(1, 6):
+    for i in range(1, 7):
 
         t = teams[i]
         c1, c2 = st.columns([2, 1])
@@ -803,7 +804,7 @@ def demo():
 
     if st.button("Reset All Teams"):
 
-        for i in range(1, 6):
+        for i in range(1, 7):
 
             teams[i]["level"] = 1
             teams[i]["score"] = 0
