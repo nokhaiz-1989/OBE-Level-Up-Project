@@ -185,7 +185,7 @@ def inject_game_css():
     versions they are ignored and the app still works."""
 
     st.markdown(
-        """
+        flat_html("""
         <style>
         /* Use the full projector width instead of a narrow centered column */
         .block-container {
@@ -359,7 +359,7 @@ def inject_game_css():
         .statrow .v.up   { color:#2B8A3E; }
         .statrow .v.down { color:#C92A2A; }
         </style>
-        """,
+        """),
         unsafe_allow_html=True
     )
 
@@ -370,7 +370,13 @@ def inject_game_css():
 def pyramid(level, show_locked_names=False):
     """Projector-friendly pyramid of colored bricks. Completed levels show
     their name; locked ones can show a greyed name so teams can see the whole
-    ladder ahead of them."""
+    ladder ahead of them.
+
+    IMPORTANT: each <div> is built as a single unindented line. Streamlit's
+    markdown renderer treats any line starting with 4+ spaces as a code
+    block, so a pretty-printed multi-line f-string here would print as raw
+    HTML text on screen instead of rendering — this is what caused the
+    literal <div style="..."> text to show up earlier."""
     widths = [30, 45, 60, 75, 90]
     rows = []
 
@@ -389,27 +395,33 @@ def pyramid(level, show_locked_names=False):
 
         border = "2px solid #F59F00" if current else "none"
 
-        rows.append(
-            f'''
-            <div style="
-                width:{widths[i]}%;
-                margin:3px auto;
-                background:{color};
-                color:{text_color};
-                border:{border};
-                text-align:center;
-                border-radius:6px;
-                padding:6px 0;
-                font-family:sans-serif;
-                font-weight:700;
-                font-size:15px;
-                letter-spacing:1px;
-                box-shadow:0 2px 4px rgba(0,0,0,0.15);
-            ">{label}</div>
-            '''
+        style = (
+            f"width:{widths[i]}%;margin:3px auto;background:{color};"
+            f"color:{text_color};border:{border};text-align:center;"
+            f"border-radius:6px;padding:6px 0;font-family:sans-serif;"
+            f"font-weight:700;font-size:15px;letter-spacing:1px;"
+            f"box-shadow:0 2px 4px rgba(0,0,0,0.15);"
         )
 
+        rows.append(f'<div style="{style}">{label}</div>')
+
     return "".join(rows)
+
+
+def flat_html(s):
+    """Collapse a pretty-printed, indented multi-line HTML string down to a
+    single line with no leading whitespace on any part.
+
+    Streamlit's st.markdown renders unsafe_allow_html content through a
+    Markdown parser first. Markdown treats any line indented 4+ spaces as
+    a fenced code block, and treats a tag that itself starts 4+ spaces in
+    as NOT the start of an HTML block. A neatly indented Python f-string
+    (the natural way to write HTML in source code) trips both rules, so
+    instead of rendering, the raw "<div style=...">" text gets printed on
+    the page. Flattening every multi-line HTML snippet through this
+    function before passing it to st.markdown avoids that entirely.
+    """
+    return " ".join(line.strip() for line in s.strip().splitlines())
 
 
 def hud(t):
@@ -420,7 +432,7 @@ def hud(t):
         level_label = f"{t['level']} · {LEVELS[t['level'] - 1]}"
 
     st.markdown(
-        f"""
+        flat_html(f"""
         <div class="hud">
             <div>
                 <div class="hud-team">🏗️ {t['name']}</div>
@@ -438,7 +450,7 @@ def hud(t):
                 </div>
             </div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True
     )
 
@@ -484,7 +496,7 @@ def performance_html(t):
     attempts = cleared + t["misses"]
     accuracy = f"{round(100 * cleared / attempts)}%" if attempts else "—"
 
-    return f"""
+    return flat_html(f"""
     <div class='panel'>
         <div class='panel-head'>Your performance</div>
         <div class='statrow'><span class='k'>Wallet now</span>
@@ -498,7 +510,7 @@ def performance_html(t):
         <div class='statrow'><span class='k'>First-try accuracy</span>
             <span class='v'>{accuracy}</span></div>
     </div>
-    """
+    """)
 
 
 def side_panels(t):
@@ -1072,14 +1084,14 @@ def presenter():
     st_autorefresh(interval=2000, key="presenter_autorefresh")
 
     st.markdown(
-        """
+        flat_html("""
         <style>
         .block-container { max-width:100% !important;
             padding: 1rem 1.6rem 0.5rem 1.6rem !important; }
         div[data-testid="stVerticalBlock"] > div { gap: 0.3rem; }
         hr { margin: 0.6rem 0; }
         </style>
-        """,
+        """),
         unsafe_allow_html=True
     )
 
