@@ -368,13 +368,50 @@ def render_obe_journey(t):
             """
         )
 
-    st.markdown(
-        f"""
-        <div class="journey-heading">🧭 YOUR OBE JOURNEY <span>{completed_count}/5 completed</span></div>
-        <div class="journey-grid">{''.join(cards)}</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    journey_html = f"""
+    <style>
+      body {{ margin:0; font-family: Arial, sans-serif; background: transparent; }}
+      .journey-heading {{
+        font-size:22px; font-weight:900; margin:4px 0 10px;
+        color:#212529;
+      }}
+      .journey-heading span {{
+        float:right; font-size:14px; color:#666; padding-top:5px;
+      }}
+      .journey-grid {{
+        display:grid; grid-template-columns:repeat(5, minmax(0, 1fr));
+        gap:8px; margin-bottom:8px;
+      }}
+      .journey-card {{
+        min-height:145px; border:2px solid; border-radius:14px;
+        padding:11px 9px; text-align:center; box-sizing:border-box;
+        box-shadow:0 3px 8px rgba(0,0,0,.07);
+      }}
+      .journey-top {{
+        display:flex; justify-content:space-between; align-items:center;
+      }}
+      .journey-icon {{ font-size:23px; }}
+      .journey-number {{ font-size:13px; font-weight:900; opacity:.75; }}
+      .journey-name {{
+        font-size:16px; font-weight:900; margin-top:4px; letter-spacing:.5px;
+      }}
+      .journey-desc {{
+        font-size:13px; line-height:1.25; font-weight:700; margin-top:7px;
+      }}
+      .journey-status {{
+        font-size:11px; font-weight:900; margin-top:10px; letter-spacing:.3px;
+      }}
+      @media (max-width: 900px) {{
+        .journey-grid {{ grid-template-columns:1fr; }}
+        .journey-card {{ min-height:auto; }}
+        .journey-heading span {{ float:none; display:block; }}
+      }}
+    </style>
+    <div class="journey-heading">🧭 YOUR OBE JOURNEY <span>{completed_count}/5 completed</span></div>
+    <div class="journey-grid">{''.join(cards)}</div>
+    """
+
+    components.html(journey_html, height=205, scrolling=False)
 
 
 def home():
@@ -477,17 +514,6 @@ def team_game():
         .question-box { background:#f8f9fa; border-left:7px solid #4C6EF5; padding:18px 22px;
                         border-radius:14px; margin:10px 0 18px; font-size:22px; line-height:1.5; font-weight:650; }
         .challenge-title { font-size:30px; font-weight:900; margin:8px 0 12px; }
-        .journey-heading { font-size:22px; font-weight:900; margin:18px 0 10px; }
-        .journey-heading span { float:right; font-size:14px; color:#666; padding-top:5px; }
-        .journey-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:20px; }
-        .journey-card { min-height:145px; border:2px solid; border-radius:14px; padding:11px 9px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,.07); }
-        .journey-top { display:flex; justify-content:space-between; align-items:center; }
-        .journey-icon { font-size:23px; }
-        .journey-number { font-size:13px; font-weight:900; opacity:.75; }
-        .journey-name { font-size:16px; font-weight:900; margin-top:4px; letter-spacing:.5px; }
-        .journey-desc { font-size:13px; line-height:1.25; font-weight:700; margin-top:7px; }
-        .journey-status { font-size:11px; font-weight:900; margin-top:10px; letter-spacing:.3px; }
-        @media (max-width: 900px) { .journey-grid { grid-template-columns:1fr; } .journey-card { min-height:auto; } .journey-heading span { float:none; display:block; } }
         </style>
         """,
         unsafe_allow_html=True,
